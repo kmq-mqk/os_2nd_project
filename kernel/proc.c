@@ -204,6 +204,25 @@ proc_pagetable(struct proc *p)
     return 0;
   }
 
+#ifdef LAB_PGTBL
+  char *usyscall = kalloc();
+  if (usyscall == 0) {
+    uvmunmap(pagetable, TRAPFRAME, 1, 0);
+    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    uvmfree(pagetable, 0);
+    return 0;
+  }
+  memset(usyscall, 0, PGSIZE);
+  ((struct usyscall *)usyscall)->pid = p->pid;
+  if (mappages(pagetable, USYSCALL, PGSIZE, (uint64)usyscall,
+               PTE_R | PTE_U) < 0) {
+    kfree(usyscall);
+    uvmunmap(pagetable, TRAPFRAME, 1, 0);
+    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    uvmfree(pagetable, 0);
+    return 0;
+  }
+#endif
 
   return pagetable;
 }
@@ -213,6 +232,9 @@ proc_pagetable(struct proc *p)
 void
 proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
+#ifdef LAB_PGTBL
+  uvmunmap(pagetable, USYSCALL, 1, 1);
+#endif
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
   uvmfree(pagetable, sz);
